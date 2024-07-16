@@ -3,8 +3,6 @@ import pygame
 from config import Config
 from utils.utils import to_tl_x, to_tl_y
 
-from collections.abc import MutableMapping
-
 class Axe(pygame.sprite.Sprite):
 
     def __init__(self, screen):
@@ -26,40 +24,38 @@ class Axe(pygame.sprite.Sprite):
 
     def draw(self):
         self.screen.blit(self.image, self.rect)
-
-class State(MutableMapping, dict):
-
-    def __setitem__(self, key, value):
-        print('Setter got call…')
-        match key:  # Apply coordinate system swap
-            case 'x':
-                print('x key has been updated. \o/')
-                dict.__setitem__(self,key,value - self.size / 2)
-                self.update(self, x=self.state[key])
-            case 'y':
-                print('y key has been updated. \o/')
-                self.state[key] = value + self.size
-                dict.__setitem__(self,key,value + self.size) 
-                self.update(self, y=self.state[key])
-            case _:
-                print(key + ' key has been updated.')
-                self.state[key] = value
-
 class Element(pygame.sprite.Sprite):
 
     def __init__(self, init_mb_coordinates, screen):
         super().__init__()
         self.config = Config
         self.size = self.config.SIZE
+
+        # State properties : x, y and velocity_y        
+        self.velocity_y = 0
+        self._x = init_mb_coordinates[0] - self.size / 2
+        @property
+        def x(self):
+            return self._x
         
-        self.state = dict(
-            zip(('x', 'y', 'velocity', 'acceleration'), (0.0, 0.0, 0.0, 0.0)))
-
-        self.state = State(self.state)
-
-        self.state['x'] = init_mb_coordinates[0] - self.size / 2
-        self.state['y'] = init_mb_coordinates[1]
-        self.state['velocity'] = self.config.VELOCITY
+        @x.setter
+        def x(self, value):
+            corrected_value = value - self.size / 2
+            print('x setter called.')
+            self.update(x=corrected_value)
+            self._x = corrected_value        
+        
+        self._y = init_mb_coordinates[1] + self.size
+        @property
+        def y(self):
+            return self._y
+        
+        @y.setter
+        def y(self, value):
+            corrected_value = value + self.size
+            print('y setter called.')
+            self.update(y=corrected_value)
+            self._y = corrected_value
 
         # Affections collection
         # scroll, fire, gravity, wind…
@@ -72,8 +68,8 @@ class Element(pygame.sprite.Sprite):
         pygame.draw.rect(self.image, (0, 255, 0),
                          (5, 5, self.size - 10, self.size - 10))
         self.rect = self.image.get_rect()
-        self.rect.x = int(to_tl_x(self.state['x']))
-        self.rect.y = int(to_tl_y(self.state['y']))
+        self.rect.x = int(to_tl_x(self.x))
+        self.rect.y = int(to_tl_y(self.y))
 
         # Actions
         self.is_jumping = False
@@ -82,11 +78,11 @@ class Element(pygame.sprite.Sprite):
         print('Setter test started.')
         match key:
             case 'x':
-                print('Should print Hello.')
-                self.state['x'] = 0
+                print('x setter should be called…')
+                self.x = 0
             case 'y':
-                print('Should print Bye.')
-                self.state['y'] = 0
+                print('y setter should be called…')
+                self.y = 0
         print('Setter test finished.')
 
     def jump(self, jump_direction):
@@ -96,35 +92,33 @@ class Element(pygame.sprite.Sprite):
             direction_x = 0
             match str(jump_direction):
                 case 'left':
-                    target_x = self.state['x'] - self.size
+                    target_x = self.x - self.size
                     direction_x = -1
                 case 'right':
-                    target_x = self.state['x'] + self.size
+                    target_x = self.x + self.size
                     direction_x = 1
 
             if target_x is not None:
 
-                while self.state['x'] != target_x:
-                    self.state['velocity'] += self.config.GRAVITY
-                    self.state['y'] += self.state['velocity']
-                    self.state['x'] += direction_x * 1
-                    self.state['velocity'] = self.config.VELOCITY
+                while self.x != target_x:
+                    self.velocity_y += self.config.GRAVITY
+                    self.y += self.velocity_y
+                    self.x += direction_x * 1
 
                 self.is_jumping = False
                 #print(self.state['x'], self.state['y'])
-                self.state['velocity'] = self.config.VELOCITY
+                self.velocity_y = 0
 
     def update(self, *arg, **kwargs):
         # Affections effects
         if 'scroll' in self.affected_by:
-            self.state['y'] -= self.config.SCROLLSPEED
+            self.y -= self.config.SCROLLSPEED
 
         # Position update
         match len(kwargs.items()):
             case 0:  # If no specific coordinate is passed
-                self.rect.x = int(to_tl_x(self.state['x']))
-                self.rect.y = int(to_tl_y(self.state['y']))
-                #print('Both x and y coordinates updated.')
+                self.rect.x = int(to_tl_x(self.x))
+                self.rect.y = int(to_tl_y(self.y))
 
             case _:  # If x and/or y coordinate is passed
                 for key, value in kwargs.items():
