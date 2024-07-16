@@ -31,6 +31,9 @@ while not STOP:
                     goo.jump('left')
                 case 3:  # Right click
                     goo.jump('right')
+                case 2:
+                    goo.setterTest('x')
+                    goo.setterTest('y')
 
     sprites.update()
     DISPLAYSURF.fill((0, 0, 255))

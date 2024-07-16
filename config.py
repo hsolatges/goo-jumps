@@ -1,6 +1,3 @@
-import math
-
-
 class Config:
   TITLE = 'Goo jumps! – The game'
   FPS = 60
@@ -10,8 +7,3 @@ class Config:
   GRAVITY = 1
   SCROLLSPEED = 1
   VELOCITY = 1
-  JUMP_DATA = {
-      'velocity': 1,
-      'angle': 10 * math.pi / 180,
-      'max_height': 7 / 3 * SIZE,
-  }

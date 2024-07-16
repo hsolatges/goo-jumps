@@ -1,9 +1,9 @@
 import pygame
-import math
 
 from config import Config
 from utils.utils import to_tl_x, to_tl_y
 
+from collections.abc import MutableMapping
 
 class Axe(pygame.sprite.Sprite):
 
@@ -27,6 +27,23 @@ class Axe(pygame.sprite.Sprite):
     def draw(self):
         self.screen.blit(self.image, self.rect)
 
+class State(MutableMapping, dict):
+
+    def __setitem__(self, key, value):
+        print('Setter got call…')
+        match key:  # Apply coordinate system swap
+            case 'x':
+                print('x key has been updated. \o/')
+                dict.__setitem__(self,key,value - self.size / 2)
+                self.update(self, x=self.state[key])
+            case 'y':
+                print('y key has been updated. \o/')
+                self.state[key] = value + self.size
+                dict.__setitem__(self,key,value + self.size) 
+                self.update(self, y=self.state[key])
+            case _:
+                print(key + ' key has been updated.')
+                self.state[key] = value
 
 class Element(pygame.sprite.Sprite):
 
@@ -34,32 +51,15 @@ class Element(pygame.sprite.Sprite):
         super().__init__()
         self.config = Config
         self.size = self.config.SIZE
-        self.status = dict(
+        
+        self.state = dict(
             zip(('x', 'y', 'velocity', 'acceleration'), (0.0, 0.0, 0.0, 0.0)))
 
-        # Position, velocity and accleration
-        # are stored and updated in the status dictionary
-        @property
-        def status(self):
-            return self._status
+        self.state = State(self.state)
 
-        @status.setter
-        def status(self, **kwargs):
-            for key, value in kwargs.items():
-                if key in self._status:
-                    match key:  # Apply coordinate system swap
-                        case 'x':
-                            self._status[key] = value - self.size / 2
-                            self.update(self, x=self._status[key])
-                        case 'y':
-                            self._status[key] = value + self.size
-                            self.update(self, y=self._status[key])
-                        case _:
-                            self._status[key] = value
-
-        self.status['x'] = init_mb_coordinates[0] - self.size / 2
-        self.status['y'] = init_mb_coordinates[1]
-        self.status['velocity'] = self.config.VELOCITY
+        self.state['x'] = init_mb_coordinates[0] - self.size / 2
+        self.state['y'] = init_mb_coordinates[1]
+        self.state['velocity'] = self.config.VELOCITY
 
         # Affections collection
         # scroll, fire, gravity, wind…
@@ -72,11 +72,22 @@ class Element(pygame.sprite.Sprite):
         pygame.draw.rect(self.image, (0, 255, 0),
                          (5, 5, self.size - 10, self.size - 10))
         self.rect = self.image.get_rect()
-        self.rect.x = int(to_tl_x(self.status['x']))
-        self.rect.y = int(to_tl_y(self.status['y']))
+        self.rect.x = int(to_tl_x(self.state['x']))
+        self.rect.y = int(to_tl_y(self.state['y']))
 
         # Actions
         self.is_jumping = False
+
+    def setterTest(self, key):
+        print('Setter test started.')
+        match key:
+            case 'x':
+                print('Should print Hello.')
+                self.state['x'] = 0
+            case 'y':
+                print('Should print Bye.')
+                self.state['y'] = 0
+        print('Setter test finished.')
 
     def jump(self, jump_direction):
         if not self.is_jumping:
@@ -85,44 +96,34 @@ class Element(pygame.sprite.Sprite):
             direction_x = 0
             match str(jump_direction):
                 case 'left':
-                    target_x = self.status['x'] - self.size
+                    target_x = self.state['x'] - self.size
                     direction_x = -1
                 case 'right':
-                    target_x = self.status['x'] + self.size
+                    target_x = self.state['x'] + self.size
                     direction_x = 1
 
             if target_x is not None:
-                # Calculate jump parameters
-                jump_height = ((7 / 3) * self.size)
-                horizontal_displacement = self.size
-                jump_duration = int(
-                    2 * (jump_height / abs(self.config.GRAVITY))**0.5)
 
-                # Calculate jump trajectory
-                for t in range(jump_duration):
-                    # Vertical displacement
-                    vertical_displacement = 0.5 * self.config.GRAVITY * t**2
-                    # Horizontal displacement
-                    horizontal_displacement_t = (horizontal_displacement /
-                                                 jump_duration) * t
-                    # Update position
-                    self.status['x'] += direction_x * horizontal_displacement_t
-                    self.status['y'] += vertical_displacement
+                while self.state['x'] != target_x:
+                    self.state['velocity'] += self.config.GRAVITY
+                    self.state['y'] += self.state['velocity']
+                    self.state['x'] += direction_x * 1
+                    self.state['velocity'] = self.config.VELOCITY
 
                 self.is_jumping = False
-                print(self.status['x'], self.status['y'], jump_duration)
-                self.status['velocity'] = self.config.VELOCITY
+                #print(self.state['x'], self.state['y'])
+                self.state['velocity'] = self.config.VELOCITY
 
     def update(self, *arg, **kwargs):
         # Affections effects
         if 'scroll' in self.affected_by:
-            self.status['y'] -= self.config.SCROLLSPEED
+            self.state['y'] -= self.config.SCROLLSPEED
 
         # Position update
         match len(kwargs.items()):
             case 0:  # If no specific coordinate is passed
-                self.rect.x = int(to_tl_x(self.status['x']))
-                self.rect.y = int(to_tl_y(self.status['y']))
+                self.rect.x = int(to_tl_x(self.state['x']))
+                self.rect.y = int(to_tl_y(self.state['y']))
                 #print('Both x and y coordinates updated.')
 
             case _:  # If x and/or y coordinate is passed
